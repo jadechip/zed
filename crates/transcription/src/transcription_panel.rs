@@ -3,16 +3,15 @@ use crate::{
     prompts::generate_content_prompt,
     transcription_settings::{OpenAiModel, TranscriptionDockPosition, TranscriptionSettings},
     Assist, CycleMessageRole, InlineAssist, MessageId, MessageMetadata, MessageStatus,
-    NewConversation, QuoteSelection, ResetKey, Role, SavedConversation, SavedConversationMetadata,
-    SavedMessage, Split, ToggleFocus, ToggleIncludeConversation, ToggleRetrieveContext,
+    QuoteSelection, Role, SavedConversation, SavedConversationMetadata, SavedMessage, Split,
+    ToggleFocus, ToggleIncludeConversation, ToggleRetrieveContext,
 };
 use ai::prompts::repository_context::PromptCodeSnippet;
 use ai::{
     auth::ProviderCredential,
     completion::{CompletionProvider, CompletionRequest},
     providers::open_ai::{
-        OpenAiCompletionProvider, OpenAiCompletionProviderKind, OpenAiRequest, RequestMessage,
-        OPEN_AI_API_URL,
+        OpenAiCompletionProvider, OpenAiRequest, RequestMessage, OPEN_AI_API_URL,
     },
 };
 use anyhow::{anyhow, Result};
@@ -30,16 +29,15 @@ use editor::{
 use fs::Fs;
 use futures::StreamExt;
 use gpui::{
-    canvas, div, point, relative, rems, uniform_list, Action, AnyElement, AppContext,
-    AsyncAppContext, AsyncWindowContext, ClipboardItem, Context, EventEmitter, FocusHandle,
-    FocusableView, FontStyle, FontWeight, HighlightStyle, InteractiveElement, IntoElement, Model,
-    ModelContext, ParentElement, Pixels, PromptLevel, Render, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, TextStyle, UniformListScrollHandle,
-    View, ViewContext, VisualContext, WeakModel, WeakView, WhiteSpace, WindowContext,
+    div, point, relative, rems, Action, AnyElement, AppContext, AsyncWindowContext, ClipboardItem,
+    Context, EventEmitter, FocusHandle, FocusableView, FontStyle, FontWeight, HighlightStyle,
+    InteractiveElement, IntoElement, Model, ModelContext, ParentElement, Pixels, PromptLevel,
+    Render, SharedString, StatefulInteractiveElement, Styled, Subscription, Task, TextStyle, View,
+    ViewContext, VisualContext, WeakModel, WeakView, WhiteSpace, WindowContext,
 };
 use language::{language_settings::SoftWrap, Buffer, BufferId, LanguageRegistry, ToOffset as _};
 use project::Project;
-use search::{buffer_search::DivRegistrar, BufferSearchBar};
+use search::BufferSearchBar;
 use semantic_index::{SemanticIndex, SemanticIndexStatus};
 use settings::Settings;
 use std::{
@@ -48,7 +46,7 @@ use std::{
     fmt::Write,
     iter,
     ops::Range,
-    path::{Path, PathBuf},
+    path::PathBuf,
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
@@ -58,14 +56,13 @@ use theme::ThemeSettings;
 use ui::{
     prelude::*,
     utils::{DateTimeType, FormatDistance},
-    ButtonLike, Tab, TabBar, Tooltip,
+    ButtonLike, Tooltip,
 };
 use util::{paths::CONVERSATIONS_DIR, post_inc, ResultExt, TryFutureExt};
 use uuid::Uuid;
 use workspace::{
     dock::{DockPosition, Panel, PanelEvent},
-    searchable::Direction,
-    Save, Toast, ToggleZoom, Toolbar, Workspace,
+    Save, Toast, Toolbar, Workspace,
 };
 
 pub fn init(cx: &mut AppContext) {
@@ -92,7 +89,6 @@ pub struct TranscriptionPanel {
     prev_active_editor_index: Option<usize>,
     editors: Vec<View<ConversationEditor>>,
     saved_conversations: Vec<SavedConversationMetadata>,
-    saved_conversations_scroll_handle: UniformListScrollHandle,
     zoomed: bool,
     focus_handle: FocusHandle,
     toolbar: View<Toolbar>,
@@ -184,7 +180,6 @@ impl TranscriptionPanel {
                         prev_active_editor_index: Default::default(),
                         editors: Default::default(),
                         saved_conversations,
-                        saved_conversations_scroll_handle: Default::default(),
                         zoomed: false,
                         focus_handle,
                         toolbar,
@@ -892,260 +887,8 @@ impl TranscriptionPanel {
         }
     }
 
-    fn reset_credentials(&mut self, _: &ResetKey, cx: &mut ViewContext<Self>) {
-        let completion_provider = self.completion_provider.clone();
-        cx.spawn(|this, mut cx| async move {
-            cx.update(|cx| completion_provider.delete_credentials(cx))?
-                .await;
-            this.update(&mut cx, |this, cx| {
-                this.build_api_key_editor(cx);
-                this.focus_handle.focus(cx);
-                cx.notify();
-            })
-        })
-        .detach_and_log_err(cx);
-    }
-
-    fn toggle_zoom(&mut self, _: &workspace::ToggleZoom, cx: &mut ViewContext<Self>) {
-        if self.zoomed {
-            cx.emit(PanelEvent::ZoomOut)
-        } else {
-            cx.emit(PanelEvent::ZoomIn)
-        }
-    }
-
-    fn deploy(&mut self, action: &search::buffer_search::Deploy, cx: &mut ViewContext<Self>) {
-        let mut propagate = true;
-        if let Some(search_bar) = self.toolbar.read(cx).item_of_type::<BufferSearchBar>() {
-            search_bar.update(cx, |search_bar, cx| {
-                if search_bar.show(cx) {
-                    search_bar.search_suggested(cx);
-                    if action.focus {
-                        let focus_handle = search_bar.focus_handle(cx);
-                        search_bar.select_query(cx);
-                        cx.focus(&focus_handle);
-                    }
-                    propagate = false
-                }
-            });
-        }
-        if propagate {
-            cx.propagate();
-        }
-    }
-
-    fn handle_editor_cancel(&mut self, _: &editor::actions::Cancel, cx: &mut ViewContext<Self>) {
-        if let Some(search_bar) = self.toolbar.read(cx).item_of_type::<BufferSearchBar>() {
-            if !search_bar.read(cx).is_dismissed() {
-                search_bar.update(cx, |search_bar, cx| {
-                    search_bar.dismiss(&Default::default(), cx)
-                });
-                return;
-            }
-        }
-        cx.propagate();
-    }
-
-    fn select_next_match(&mut self, _: &search::SelectNextMatch, cx: &mut ViewContext<Self>) {
-        if let Some(search_bar) = self.toolbar.read(cx).item_of_type::<BufferSearchBar>() {
-            search_bar.update(cx, |bar, cx| bar.select_match(Direction::Next, 1, cx));
-        }
-    }
-
-    fn select_prev_match(&mut self, _: &search::SelectPrevMatch, cx: &mut ViewContext<Self>) {
-        if let Some(search_bar) = self.toolbar.read(cx).item_of_type::<BufferSearchBar>() {
-            search_bar.update(cx, |bar, cx| bar.select_match(Direction::Prev, 1, cx));
-        }
-    }
-
     fn active_editor(&self) -> Option<&View<ConversationEditor>> {
         self.editors.get(self.active_editor_index?)
-    }
-
-    fn render_api_key_editor(
-        &self,
-        editor: &View<Editor>,
-        cx: &mut ViewContext<Self>,
-    ) -> impl IntoElement {
-        let settings = ThemeSettings::get_global(cx);
-        let text_style = TextStyle {
-            color: if editor.read(cx).read_only(cx) {
-                cx.theme().colors().text_disabled
-            } else {
-                cx.theme().colors().text
-            },
-            font_family: settings.ui_font.family.clone(),
-            font_features: settings.ui_font.features,
-            font_size: rems(0.875).into(),
-            font_weight: FontWeight::NORMAL,
-            font_style: FontStyle::Normal,
-            line_height: relative(1.3),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-            white_space: WhiteSpace::Normal,
-        };
-        EditorElement::new(
-            &editor,
-            EditorStyle {
-                background: cx.theme().colors().editor_background,
-                local_player: cx.theme().players().local(),
-                text: text_style,
-                ..Default::default()
-            },
-        )
-    }
-
-    fn render_hamburger_button(cx: &mut ViewContext<Self>) -> impl IntoElement {
-        IconButton::new("hamburger_button", IconName::Menu)
-            .on_click(cx.listener(|this, _event, cx| {
-                if this.active_editor().is_some() {
-                    this.set_active_editor_index(None, cx);
-                } else {
-                    this.set_active_editor_index(this.prev_active_editor_index, cx);
-                }
-            }))
-            .tooltip(|cx| Tooltip::text("Conversation History", cx))
-    }
-
-    fn render_editor_tools(&self, cx: &mut ViewContext<Self>) -> Vec<AnyElement> {
-        if self.active_editor().is_some() {
-            vec![
-                Self::render_split_button(cx).into_any_element(),
-                Self::render_quote_button(cx).into_any_element(),
-                Self::render_assist_button(cx).into_any_element(),
-            ]
-        } else {
-            Default::default()
-        }
-    }
-
-    fn render_split_button(cx: &mut ViewContext<Self>) -> impl IntoElement {
-        IconButton::new("split_button", IconName::Snip)
-            .on_click(cx.listener(|this, _event, cx| {
-                if let Some(active_editor) = this.active_editor() {
-                    active_editor.update(cx, |editor, cx| editor.split(&Default::default(), cx));
-                }
-            }))
-            .icon_size(IconSize::Small)
-            .tooltip(|cx| Tooltip::for_action("Split Message", &Split, cx))
-    }
-
-    fn render_assist_button(cx: &mut ViewContext<Self>) -> impl IntoElement {
-        IconButton::new("assist_button", IconName::MagicWand)
-            .on_click(cx.listener(|this, _event, cx| {
-                if let Some(active_editor) = this.active_editor() {
-                    active_editor.update(cx, |editor, cx| editor.assist(&Default::default(), cx));
-                }
-            }))
-            .icon_size(IconSize::Small)
-            .tooltip(|cx| Tooltip::for_action("Assist", &Assist, cx))
-    }
-
-    fn render_quote_button(cx: &mut ViewContext<Self>) -> impl IntoElement {
-        IconButton::new("quote_button", IconName::Quote)
-            .on_click(cx.listener(|this, _event, cx| {
-                if let Some(workspace) = this.workspace.upgrade() {
-                    cx.window_context().defer(move |cx| {
-                        workspace.update(cx, |workspace, cx| {
-                            ConversationEditor::quote_selection(workspace, &Default::default(), cx)
-                        });
-                    });
-                }
-            }))
-            .icon_size(IconSize::Small)
-            .tooltip(|cx| Tooltip::for_action("Quote Selection", &QuoteSelection, cx))
-    }
-
-    fn render_plus_button(cx: &mut ViewContext<Self>) -> impl IntoElement {
-        IconButton::new("plus_button", IconName::Plus)
-            .on_click(cx.listener(|this, _event, cx| {
-                this.new_conversation(cx);
-            }))
-            .icon_size(IconSize::Small)
-            .tooltip(|cx| Tooltip::for_action("New Conversation", &NewConversation, cx))
-    }
-
-    fn render_zoom_button(&self, cx: &mut ViewContext<Self>) -> impl IntoElement {
-        let zoomed = self.zoomed;
-        IconButton::new("zoom_button", IconName::Maximize)
-            .on_click(cx.listener(|this, _event, cx| {
-                this.toggle_zoom(&ToggleZoom, cx);
-            }))
-            .selected(zoomed)
-            .selected_icon(IconName::Minimize)
-            .icon_size(IconSize::Small)
-            .tooltip(move |cx| {
-                Tooltip::for_action(if zoomed { "Zoom Out" } else { "Zoom In" }, &ToggleZoom, cx)
-            })
-    }
-
-    fn render_saved_conversation(
-        &mut self,
-        index: usize,
-        cx: &mut ViewContext<Self>,
-    ) -> impl IntoElement {
-        let conversation = &self.saved_conversations[index];
-        let path = conversation.path.clone();
-
-        ButtonLike::new(index)
-            .on_click(cx.listener(move |this, _, cx| {
-                this.open_conversation(path.clone(), cx)
-                    .detach_and_log_err(cx)
-            }))
-            .full_width()
-            .child(
-                div()
-                    .flex()
-                    .w_full()
-                    .gap_2()
-                    .child(
-                        Label::new(conversation.mtime.format("%F %I:%M%p").to_string())
-                            .color(Color::Muted)
-                            .size(LabelSize::Small),
-                    )
-                    .child(Label::new(conversation.title.clone()).size(LabelSize::Small)),
-            )
-    }
-
-    fn open_conversation(&mut self, path: PathBuf, cx: &mut ViewContext<Self>) -> Task<Result<()>> {
-        cx.focus(&self.focus_handle);
-
-        if let Some(ix) = self.editor_index_for_path(&path, cx) {
-            self.set_active_editor_index(Some(ix), cx);
-            return Task::ready(Ok(()));
-        }
-
-        let fs = self.fs.clone();
-        let workspace = self.workspace.clone();
-        let languages = self.languages.clone();
-        cx.spawn(|this, mut cx| async move {
-            let saved_conversation = fs.load(&path).await?;
-            let saved_conversation = serde_json::from_str(&saved_conversation)?;
-            let conversation =
-                Conversation::deserialize(saved_conversation, path.clone(), languages, &mut cx)
-                    .await?;
-
-            this.update(&mut cx, |this, cx| {
-                // If, by the time we've loaded the conversation, the user has already opened
-                // the same conversation, we don't want to open it again.
-                if let Some(ix) = this.editor_index_for_path(&path, cx) {
-                    this.set_active_editor_index(Some(ix), cx);
-                } else {
-                    let editor = cx.new_view(|cx| {
-                        ConversationEditor::for_conversation(conversation, fs, workspace, cx)
-                    });
-                    this.add_conversation(editor, cx);
-                }
-            })?;
-            Ok(())
-        })
-    }
-
-    fn editor_index_for_path(&self, path: &Path, cx: &AppContext) -> Option<usize> {
-        self.editors
-            .iter()
-            .position(|editor| editor.read(cx).conversation.read(cx).path.as_deref() == Some(path))
     }
 
     fn has_credentials(&mut self) -> bool {
@@ -1175,144 +918,47 @@ fn build_api_key_editor(cx: &mut WindowContext) -> View<Editor> {
 
 impl Render for TranscriptionPanel {
     fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
-        if let Some(api_key_editor) = self.api_key_editor.clone() {
-            const INSTRUCTIONS: [&'static str; 2] = [
-                "Control Zed with just your voice!.",
-                " - This demo uses Candle to load and run a speech-to-text model locally",
-            ];
+        const INSTRUCTIONS: [&'static str; 2] = [
+            "Control Zed with just your voice!.",
+            " - This demo uses Candle to load and run a speech-to-text model locally",
+        ];
 
-            v_flex()
-                .p_4()
-                .size_full()
-                .on_action(cx.listener(TranscriptionPanel::save_credentials))
-                .track_focus(&self.focus_handle)
-                .children(
-                    INSTRUCTIONS.map(|instruction| Label::new(instruction).size(LabelSize::Small)),
-                )
-                .child(
-                    h_flex().py_4().child(
-                        Button::new("transcribe_button", "Transcribe Audio")
-                            .icon_color(Color::Muted)
-                            .icon(IconName::Transcription)
-                            .icon_position(IconPosition::Start)
-                            .style(ButtonStyle::Filled)
-                            .full_width()
-                            .on_click({
-                                move |_, cx| {
-                                    cx.spawn(move |cx| async move {
-                                        println!("Transcribing audio");
-                                        local_ai::init();
-                                    })
-                                    .detach()
-                                }
-                            }),
-                    ),
-                )
-                .child(
-                    h_flex()
-                        .gap_2()
-                        .child(Label::new("Click on").size(LabelSize::Small))
-                        .child(Icon::new(IconName::Transcription).size(IconSize::XSmall))
-                        .child(
-                            Label::new("in the status bar to close this panel.")
-                                .size(LabelSize::Small),
-                        ),
-                )
-        } else {
-            let header = TabBar::new("assistant_header")
-                .start_child(
-                    h_flex().gap_1().child(Self::render_hamburger_button(cx)), // .children(title),
-                )
-                .children(self.active_editor().map(|editor| {
-                    h_flex()
-                        .h(rems(Tab::CONTAINER_HEIGHT_IN_REMS))
-                        .flex_1()
-                        .px_2()
-                        .child(Label::new(editor.read(cx).title(cx)).into_element())
-                }))
-                .when(self.focus_handle.contains_focused(cx), |this| {
-                    this.end_child(
-                        h_flex()
-                            .gap_2()
-                            .when(self.active_editor().is_some(), |this| {
-                                this.child(h_flex().gap_1().children(self.render_editor_tools(cx)))
-                                    .child(
-                                        ui::Divider::vertical()
-                                            .inset()
-                                            .color(ui::DividerColor::Border),
-                                    )
-                            })
-                            .child(
-                                h_flex()
-                                    .gap_1()
-                                    .child(Self::render_plus_button(cx))
-                                    .child(self.render_zoom_button(cx)),
-                            ),
-                    )
-                });
-
-            let contents = if self.active_editor().is_some() {
-                let mut registrar = DivRegistrar::new(
-                    |panel, cx| panel.toolbar.read(cx).item_of_type::<BufferSearchBar>(),
-                    cx,
-                );
-                BufferSearchBar::register(&mut registrar);
-                registrar.into_div()
-            } else {
-                div()
-            };
-            v_flex()
-                .key_context("TranscriptionPanel")
-                .size_full()
-                .on_action(cx.listener(|this, _: &workspace::NewFile, cx| {
-                    this.new_conversation(cx);
-                }))
-                .on_action(cx.listener(TranscriptionPanel::reset_credentials))
-                .on_action(cx.listener(TranscriptionPanel::toggle_zoom))
-                .on_action(cx.listener(TranscriptionPanel::deploy))
-                .on_action(cx.listener(TranscriptionPanel::select_next_match))
-                .on_action(cx.listener(TranscriptionPanel::select_prev_match))
-                .on_action(cx.listener(TranscriptionPanel::handle_editor_cancel))
-                .track_focus(&self.focus_handle)
-                .child(header)
-                .children(if self.toolbar.read(cx).hidden() {
-                    None
-                } else {
-                    Some(self.toolbar.clone())
-                })
-                .child(
-                    contents
-                        .flex_1()
-                        .child(if let Some(editor) = self.active_editor() {
-                            editor.clone().into_any_element()
-                        } else {
-                            let view = cx.view().clone();
-                            let scroll_handle = self.saved_conversations_scroll_handle.clone();
-                            let conversation_count = self.saved_conversations.len();
-                            canvas(
-                                move |bounds, cx| {
-                                    let mut list = uniform_list(
-                                        view,
-                                        "saved_conversations",
-                                        conversation_count,
-                                        |this, range, cx| {
-                                            range
-                                                .map(|ix| this.render_saved_conversation(ix, cx))
-                                                .collect()
-                                        },
-                                    )
-                                    .track_scroll(scroll_handle)
-                                    .into_any_element();
-                                    list.layout(bounds.origin, bounds.size.into(), cx);
-                                    list
-                                },
-                                |_bounds, mut list, cx| list.paint(cx),
-                            )
-                            .size_full()
-                            .into_any_element()
+        v_flex()
+            .p_4()
+            .size_full()
+            .on_action(cx.listener(TranscriptionPanel::save_credentials))
+            .track_focus(&self.focus_handle)
+            .children(
+                INSTRUCTIONS.map(|instruction| Label::new(instruction).size(LabelSize::Small)),
+            )
+            .child(
+                h_flex().py_4().child(
+                    Button::new("transcribe_button", "Transcribe Audio")
+                        .icon_color(Color::Muted)
+                        .icon(IconName::Transcription)
+                        .icon_position(IconPosition::Start)
+                        .style(ButtonStyle::Filled)
+                        .full_width()
+                        .on_click({
+                            move |_, cx| {
+                                cx.spawn(move |_cx| async move {
+                                    println!("Transcribing audio");
+                                    local_ai::init();
+                                })
+                                .detach()
+                            }
                         }),
-                )
-        }
+                ),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(Label::new("Click on").size(LabelSize::Small))
+                    .child(Icon::new(IconName::Transcription).size(IconSize::XSmall))
+                    .child(
+                        Label::new("in the status bar to close this panel.").size(LabelSize::Small),
+                    ),
+            )
     }
 }
 
@@ -1539,89 +1185,6 @@ impl Conversation {
             model: self.model,
             api_url: self.api_url.clone(),
         }
-    }
-
-    async fn deserialize(
-        saved_conversation: SavedConversation,
-        path: PathBuf,
-        language_registry: Arc<LanguageRegistry>,
-        cx: &mut AsyncAppContext,
-    ) -> Result<Model<Self>> {
-        let id = match saved_conversation.id {
-            Some(id) => Some(id),
-            None => Some(Uuid::new_v4().to_string()),
-        };
-        let model = saved_conversation.model;
-        let api_url = saved_conversation.api_url;
-        let completion_provider: Arc<dyn CompletionProvider> = Arc::new(
-            OpenAiCompletionProvider::new(
-                api_url
-                    .clone()
-                    .unwrap_or_else(|| OPEN_AI_API_URL.to_string()),
-                OpenAiCompletionProviderKind::OpenAi,
-                model.full_name().into(),
-                cx.background_executor().clone(),
-            )
-            .await,
-        );
-        cx.update(|cx| completion_provider.retrieve_credentials(cx))?
-            .await;
-
-        let markdown = language_registry.language_for_name("Markdown");
-        let mut message_anchors = Vec::new();
-        let mut next_message_id = MessageId(0);
-        let buffer = cx.new_model(|cx| {
-            let mut buffer = Buffer::new(
-                0,
-                BufferId::new(cx.entity_id().as_u64()).unwrap(),
-                saved_conversation.text,
-            );
-            for message in saved_conversation.messages {
-                message_anchors.push(MessageAnchor {
-                    id: message.id,
-                    start: buffer.anchor_before(message.start),
-                });
-                next_message_id = cmp::max(next_message_id, MessageId(message.id.0 + 1));
-            }
-            buffer.set_language_registry(language_registry);
-            cx.spawn(|buffer, mut cx| async move {
-                let markdown = markdown.await?;
-                buffer.update(&mut cx, |buffer: &mut Buffer, cx| {
-                    buffer.set_language(Some(markdown), cx)
-                })?;
-                anyhow::Ok(())
-            })
-            .detach_and_log_err(cx);
-            buffer
-        })?;
-
-        cx.new_model(|cx| {
-            let mut this = Self {
-                id,
-                message_anchors,
-                messages_metadata: saved_conversation.message_metadata,
-                next_message_id,
-                summary: Some(Summary {
-                    text: saved_conversation.summary,
-                    done: true,
-                }),
-                pending_summary: Task::ready(None),
-                completion_count: Default::default(),
-                pending_completions: Default::default(),
-                token_count: None,
-                max_token_count: tiktoken_rs::model::get_context_size(&model.full_name()),
-                pending_token_count: Task::ready(None),
-                api_url,
-                model,
-                _subscriptions: vec![cx.subscribe(&buffer, Self::handle_buffer_event)],
-                pending_save: Task::ready(Ok(())),
-                path: Some(path),
-                buffer,
-                completion_provider,
-            };
-            this.count_remaining_tokens(cx);
-            this
-        })
     }
 
     fn handle_buffer_event(
@@ -2621,15 +2184,6 @@ impl ConversationEditor {
             let new_model = conversation.model.cycle();
             conversation.set_model(new_model, cx);
         });
-    }
-
-    fn title(&self, cx: &AppContext) -> String {
-        self.conversation
-            .read(cx)
-            .summary
-            .as_ref()
-            .map(|summary| summary.text.clone())
-            .unwrap_or_else(|| "New Conversation".into())
     }
 
     fn render_current_model(&self, cx: &mut ViewContext<Self>) -> impl IntoElement {

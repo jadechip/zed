@@ -14,7 +14,7 @@ use std::iter;
 use tokenizers::Tokenizer;
 
 mod multilingual;
-mod utils;
+// mod utils;
 
 use candle_transformers::models::whisper::{self as m, audio, Config};
 

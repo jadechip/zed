@@ -77,7 +77,9 @@ impl SavedConversation {
 }
 
 struct SavedConversationMetadata {
+    #[allow(dead_code)]
     title: String,
+    #[allow(dead_code)]
     path: PathBuf,
     mtime: chrono::DateTime<chrono::Local>,
 }
