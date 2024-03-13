@@ -11275,6 +11275,7 @@ dependencies = [
  "gpui",
  "indoc",
  "language",
+ "local_ai",
  "log",
  "menu",
  "multi_buffer",

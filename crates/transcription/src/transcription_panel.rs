@@ -1190,14 +1190,23 @@ impl Render for TranscriptionPanel {
                     INSTRUCTIONS.map(|instruction| Label::new(instruction).size(LabelSize::Small)),
                 )
                 .child(
-                    h_flex()
-                        .w_full()
-                        .my_2()
-                        .px_2()
-                        .py_1()
-                        .bg(cx.theme().colors().editor_background)
-                        .rounded_md()
-                        .child(self.render_api_key_editor(&api_key_editor, cx)),
+                    h_flex().py_4().child(
+                        Button::new("transcribe_button", "Transcribe Audio")
+                            .icon_color(Color::Muted)
+                            .icon(IconName::Transcription)
+                            .icon_position(IconPosition::Start)
+                            .style(ButtonStyle::Filled)
+                            .full_width()
+                            .on_click({
+                                move |_, cx| {
+                                    cx.spawn(move |cx| async move {
+                                        println!("Transcribing audio");
+                                        local_ai::init();
+                                    })
+                                    .detach()
+                                }
+                            }),
+                    ),
                 )
                 .child(
                     h_flex()
