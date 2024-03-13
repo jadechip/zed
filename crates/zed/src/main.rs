@@ -164,6 +164,8 @@ fn main() {
         language::init(cx);
         editor::init(cx);
         diagnostics::init(cx);
+        // local_ai::init();
+
         copilot::init(
             copilot_language_server_id,
             http.clone(),
@@ -171,6 +173,7 @@ fn main() {
             cx,
         );
         assistant::init(cx);
+        transcription::init(cx);
 
         extension::init(
             fs.clone(),

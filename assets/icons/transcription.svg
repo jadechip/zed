@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>transcription</title>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="transcription" transform="translate(0.5, 0.4844)" fill="#000000" fill-rule="nonzero">
+            <circle id="Oval" opacity="0" cx="1" cy="7.51562" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="1.99976" cy="5.34387" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="1.99976" cy="9.68752" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="14" cy="7.53143" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="13" cy="5.35949" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="13" cy="9.70332" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="7.49219" cy="1" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="5" cy="2.01562" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="1" cy="11.53162" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="1" cy="3.5" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="14" cy="11.53162" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="14" cy="3.5" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="2.99976" cy="14.03162" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="2.98413" cy="1" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="12" cy="14.03162" r="1"></circle>
+            <circle id="Oval" opacity="0" cx="12" cy="1" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="9.99609" cy="2" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="5.00391" cy="13.03162" r="1"></circle>
+            <circle id="Oval" fill-opacity="0.75" opacity="0" cx="9.99609" cy="13.01562" r="1"></circle>
+            <g id="326557_mic_icon" transform="translate(2.5, 0.5156)">
+                <path d="M7.14285714,6.63157895 L7.14285714,2.21052632 C7.14285714,0.957894737 6.21428571,0 5,0 C3.78571429,0 2.85714286,0.957894737 2.85714286,2.21052632 L2.85714286,6.63157895 C2.85714286,7.88421052 3.78571429,8.84210526 5,8.84210526 C6.21428571,8.84210526 7.14285714,7.88421052 7.14285714,6.63157895 Z M8.78571429,6.63157895 C8.78571429,8.84210526 7,10.3894737 5,10.3894737 C3,10.3894737 1.21428571,8.84210526 1.21428571,6.63157895 L0,6.63157895 C0,9.13684211 1.92857142,11.2 4.28571429,11.568421 L4.28571429,14 L5.71428571,14 L5.71428571,11.568421 C8.07142858,11.2 10,9.13684211 10,6.63157895 L8.78571429,6.63157895 L8.78571429,6.63157895 Z" id="Shape"></path>
+            </g>
+        </g>
+    </g>
+</svg>
